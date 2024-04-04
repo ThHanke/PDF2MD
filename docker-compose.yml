@@ -1,0 +1,34 @@
+version: "3.9"
+services:
+  app:
+    build: .
+    container_name: ${APP_NAME}
+    env_file:
+    - .env
+    ports:
+      - ${APP_PORT}:5000
+    restart: always
+    networks:
+      - app_net
+    deploy:
+      resources:
+        limits:
+          cpus: '4.00'
+          memory: 8G
+        reservations:
+          cpus: '1.00'
+          memory: 5G
+          # devices:
+          #   - driver: nvidia
+          #     count: 1
+          #     capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/info"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+
+networks:
+  app_net:
+    name: ${APP_NAME}_net
+    driver: bridge

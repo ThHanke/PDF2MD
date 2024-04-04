@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block html_attribs %} itemtype="http://schema.org/WebPage" lang="en"{% endblock %}
+
+{% block title %}{{ setting.name }}{% endblock title %}
+
+{% block content %}
+<header class="pb-3 mb-4 border-bottom">
+      <a href="/" class="d-flex align-items-center text-dark text-decoration-none m-3 pb-1">
+        <img class='me-3' src="{{ url_for('static', path='/resources/Logo.svg') }}" height="70" alt="Logo"/>
+      </a>
+</header>
+<main class="bg-light rounded-3 px-3">
+    <div class="container-fluid mb-3">
+      <h1 class="display-5 fw-bold">{{ setting.name }}</h1>
+      <p class="col-md-12 ps-0 fs-4">
+        {{ setting.desc }}
+      </p>
+      <form id=input-form class='pb-3' method="post" action="{{ url_for('post_index') }}" enctype="multipart/form-data">
+        <div class="mb-3">
+          {{ form.csrf_token }}
+          {% for item in form if item.widget.input_type != 'hidden' %}
+          <div class="mb-3">
+            {% if item.label.text=='Advanced' %} 
+            <button class="btn btn-secondary mb-3" type="button" data-bs-toggle="collapse" data-bs-target="#{{item.id}}" aria-expanded="false" aria-controls="{{item.id}}">
+              {{item.label.text}}
+            </button>
+            {% else %}
+            {{ item.label(class="form-label")}}
+            {% endif %}
+            {{ item }}
+            <div class="invalid-feedback">
+              {% if item.errors %}
+                  <ul class="errors">
+                  {% for error in item.errors %}
+                      <li>{{ error }}</li>
+                  {% endfor %}
+                  </ul>
+              {% endif %}
+            </div>
+            <div id="methodHelp{{item.id}}" class="form-text">{{ item.description }}</div>
+          </div>
+        {% endfor %}
+        <button id='submit' class="form-group btn btn-primary btn-lg mt-3" type="submit">Submit</button>
+        </div>
+      </form>
+    </div>
+    {% with messages = get_flashed_messages(request) %}
+    <!-- {{messages}} -->
+    <div class="container-fluid collapse p-0 pb-3 {% if messages %} show {% endif %}" id="messages">
+      <div id="messages-body" class="card card-body">
+        <h5 class="card-title">Messages</h5>
+        {% if messages %}
+          {% for message in messages %}
+          <div class="alert alert-{{'danger' if message.category=='error' else message.category}}" role="alert">{{ message.message }}</div>
+          {% endfor %}
+        {% endif %}
+      </div>
+    </div>
+    {% endwith %}
+    <div class="spinner-border text-primary" style="display: none" id="spinner" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+    <div class="container-fluid collapse p-0 pb-3 {% if result %} show {% endif %} " id="results" >
+      <div class="card card-body">
+        <h5 class="card-title">Result</h5>
+        <code id="data" class="prettyprint language-json overflow-auto" style="white-space: pre-wrap; max-height: 500px;">{{ result }}</code>
+      </div>
+      <a id="download" class="form-group btn btn-primary btn-lg my-3 {% if result %} show {% endif %}" download="{{ filename }}" href="data:text/json;base64,{{ payload }}" role="button">Download</a>
+    </div>
+  </main>
+<footer class="pt-3 my-4 text-center text-muted border-top">
+  <span class="site-footer-owner"><a href="{{ setting.source }}">{{ setting.name }}</a> is maintained by <a href="{{ setting.org_site }}"><img src="{{ url_for('static', path='/resources/Logo.svg') }}" width="5%" alt="Logo"/></a>.</span>
+</footer>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/gh/google/code-prettify@master/loader/run_prettify.js?lang=css&amp;skin=sunburst"></script>
+<script>
+  function hideSpinner() {
+    document.getElementById('spinner').style.display = 'none';
+  }
+  function showSpinner() {
+      document.getElementById('spinner').style.removeProperty("display");
+  }
+  async function handleFormSubmit(event) {
+    showSpinner()
+	}
+  const exampleForm = document.getElementById("input-form");
+  exampleForm.addEventListener("submit", handleFormSubmit);
+</script>
+{{super()}}
+{% endblock %}
