@@ -22,6 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi import Request, HTTPException, FastAPI
 from fastapi.responses import StreamingResponse
+from fastapi import UploadFile, File
 
 
 from typing import Optional, Any, Union
@@ -315,10 +316,10 @@ async def convert(request: Request, convert_request: ConvertRequest) -> Streamin
     return StreamingResponse(content=data_bytes, media_type=media_type, headers=headers)
 
 from pathlib import Path
-default_test_dir=Path.cwd() / "test"
+default_extract_dir=Path.cwd() / "extract"
 
 @app.post("/api/extract", tags=["extract transform"])
-async def convert(request: Request, convert_request: ConvertRequest) -> StreamingResponse:
+async def extract(request: Request, file: UploadFile = File(...)) -> StreamingResponse:
     """Converts a rdf file on the web to the specified serializatio format.
 
     Args:
@@ -331,31 +332,21 @@ async def convert(request: Request, convert_request: ConvertRequest) -> Streamin
     Returns:
         StreamingResponse: RDF Output File as Streaming Response
     """
-    data_url=str(convert_request.data_url)
-    # try:
-    #     graph= parse_graph(data_url)
-    # except Exception as e:
-    #     raise HTTPException(status_code=404, detail=str(e))
-    # #add prov-o annotations
-    # graph=add_prov(graph,request.url._url,data_url)
-    #result=graph.serialize(format=convert_request.format.value)
-    PDFExtract(default_test_dir / "science_article2.pdf")
-    
-    filename=data_url.rsplit('/',1)[-1].rsplit('.',1)[0]
-    if convert_request.format.value in ['turtle','longturtle']:
-        filename+='.ttl'
-    elif convert_request.format.value=='json-ld':
-        filename+='.json'
-    else:
-        filename+='.'+convert_request.format.value 
-    data_bytes=BytesIO(result.encode())
+    doc_path=default_extract_dir / file.filename
+    with open(default_extract_dir / file.filename, "wb") as f:
+        f.write(await file.read())
+    extractor=PDFExtract(doc_path=doc_path)
+    extractor.extract_images()
+    extractor.extract_text()
+    zip_file_buffer=extractor.zip_results()
     headers = {
-        'Content-Disposition': 'attachment; filename={}'.format(filename),
+        'Content-Disposition': 'attachment; filename={}'.format(extractor.outname+'.zip'),
         'Access-Control-Expose-Headers': 'Content-Disposition'
     }
-    media_type=get_media_type(convert_request.format)
-    return StreamingResponse(content=data_bytes, media_type=media_type, headers=headers)
+    media_type='application/zip'
+    response=StreamingResponse(iter([zip_file_buffer.getvalue()]), media_type=media_type, headers=headers)
 
+    return response
 @app.get("/info", response_model=settings.Setting)
 async def info() -> dict:
     """App Information
