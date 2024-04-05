@@ -3,5 +3,5 @@ services:
   app:
     volumes:
       - ./:/src
-    # entrypoint: "python app.py"
+    entrypoint: "python app.py"
     # entrypoint: "/bin/bash"

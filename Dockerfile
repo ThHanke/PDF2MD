@@ -56,6 +56,12 @@ ENV PYTHONUNBUFFERED 1
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade -r requirements.txt
 
+#install marker
+RUN git clone https://github.com/VikParuchuri/marker.git /
+COPY marker_setup.py /marker/setup.py
+RUN cd /marker && \
+    pip install .
+
 #run a initial test - models will be downladed aswell
 # RUN python ./marker/convert_single.py ./tests/science_article.pdf ./output/science_article.md
 

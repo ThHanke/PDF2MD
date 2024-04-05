@@ -36,6 +36,8 @@ setting = settings.Setting()
 
 from enum import Enum
 
+from pdfextract import PDFExtract
+
 class ReturnType(str, Enum):
     jsonld="json-ld"
     n3="n3"
@@ -296,6 +298,48 @@ async def convert(request: Request, convert_request: ConvertRequest) -> Streamin
     #add prov-o annotations
     graph=add_prov(graph,request.url._url,data_url)
     result=graph.serialize(format=convert_request.format.value)
+    
+    filename=data_url.rsplit('/',1)[-1].rsplit('.',1)[0]
+    if convert_request.format.value in ['turtle','longturtle']:
+        filename+='.ttl'
+    elif convert_request.format.value=='json-ld':
+        filename+='.json'
+    else:
+        filename+='.'+convert_request.format.value 
+    data_bytes=BytesIO(result.encode())
+    headers = {
+        'Content-Disposition': 'attachment; filename={}'.format(filename),
+        'Access-Control-Expose-Headers': 'Content-Disposition'
+    }
+    media_type=get_media_type(convert_request.format)
+    return StreamingResponse(content=data_bytes, media_type=media_type, headers=headers)
+
+from pathlib import Path
+default_test_dir=Path.cwd() / "test"
+
+@app.post("/api/extract", tags=["extract transform"])
+async def convert(request: Request, convert_request: ConvertRequest) -> StreamingResponse:
+    """Converts a rdf file on the web to the specified serializatio format.
+
+    Args:
+        request (Request): general request
+        convert_request (ConvertRequest): convert informatation
+
+    Raises:
+        HTTPException: Error description
+
+    Returns:
+        StreamingResponse: RDF Output File as Streaming Response
+    """
+    data_url=str(convert_request.data_url)
+    # try:
+    #     graph= parse_graph(data_url)
+    # except Exception as e:
+    #     raise HTTPException(status_code=404, detail=str(e))
+    # #add prov-o annotations
+    # graph=add_prov(graph,request.url._url,data_url)
+    #result=graph.serialize(format=convert_request.format.value)
+    PDFExtract(default_test_dir / "science_article2.pdf")
     
     filename=data_url.rsplit('/',1)[-1].rsplit('.',1)[0]
     if convert_request.format.value in ['turtle','longturtle']:
