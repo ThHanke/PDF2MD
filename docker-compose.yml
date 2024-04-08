@@ -7,7 +7,7 @@ services:
     - .env
     ports:
       - ${APP_PORT}:5000
-    restart: always
+    #restart: always
     networks:
       - app_net
     deploy:
@@ -17,7 +17,7 @@ services:
           memory: 8G
         reservations:
           cpus: '1.00'
-          memory: 5G
+          memory: 6G
           # devices:
           #   - driver: nvidia
           #     count: 1

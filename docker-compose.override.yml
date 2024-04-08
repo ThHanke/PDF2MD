@@ -4,4 +4,4 @@ services:
     volumes:
       - ./:/src
     entrypoint: "python app.py"
-    # entrypoint: "/bin/bash"
+    #entrypoint: "/bin/bash"

@@ -1,8 +1,8 @@
-from marker.convert import convert_single_pdf
 # from marker.marker.convert import convert_single_pdf
-from marker.models import load_all_models
 from pathlib import Path
 default_out_dir=Path.cwd() / "output"
+default_model_dir=Path.cwd() / "models"
+
 import json
 import shutil,time
 import io, os
@@ -12,6 +12,88 @@ import fitz
 from ordered_set import OrderedSet
 import cv2
 import numpy as np
+
+from marker.postprocessors.t5 import T5ForTokenClassification
+from transformers import LayoutLMv3ForSequenceClassification, LayoutLMv3ForTokenClassification
+from texify.model.model import load_model
+
+from marker.convert import convert_single_pdf
+from marker.settings import Settings as marker_Settings
+
+marker_settings=marker_Settings(TORCH_DEVICE="cpu")
+print(marker_settings)
+def load_all_models(marker_settings):
+    local_edit_model=default_model_dir/ "edit"
+    local_order_model=default_model_dir/ "column_detector"
+    local_layout_model=default_model_dir/ "layout_segmenter"
+    local_equation_model=default_model_dir/ "texify"
+    if local_edit_model.is_dir():
+        edit_model=local_edit_model
+    else:
+        edit_model=marker_settings.EDITOR_MODEL_NAME
+    edit = T5ForTokenClassification.from_pretrained(
+            edit_model,
+            torch_dtype=marker_settings.MODEL_DTYPE,
+        ).to(marker_settings.TORCH_DEVICE_MODEL)
+    edit.eval()
+    edit.config.label2id = {
+        "equal": 0,
+        "delete": 1,
+        "newline-1": 2,
+        "space-1": 3,
+    }
+    edit.config.id2label = {v: k for k, v in edit.config.label2id.items()}
+    if local_order_model.is_dir():
+        order_model=local_order_model
+    else:
+        order_model=marker_settings.ORDERER_MODEL_NAME
+    order = LayoutLMv3ForSequenceClassification.from_pretrained(
+        order_model,
+        torch_dtype=marker_settings.MODEL_DTYPE,
+    ).to(marker_settings.TORCH_DEVICE_MODEL)
+    order.eval()
+    if local_layout_model.is_dir():
+        layout_model=local_layout_model
+    else:
+        layout_model=marker_settings.LAYOUT_MODEL_NAME
+    layout = LayoutLMv3ForTokenClassification.from_pretrained(
+        layout_model,
+        torch_dtype=marker_settings.MODEL_DTYPE,
+    ).to(marker_settings.TORCH_DEVICE_MODEL)
+    layout.config.id2label = {
+        0: "Caption",
+        1: "Footnote",
+        2: "Formula",
+        3: "List-item",
+        4: "Page-footer",
+        5: "Page-header",
+        6: "Picture",
+        7: "Section-header",
+        8: "Table",
+        9: "Text",
+        10: "Title"
+    }
+    layout.config.label2id = {v: k for k, v in layout.config.id2label.items()}
+    local_equation_model
+    if local_equation_model.is_dir():
+        equation_model=local_equation_model
+    else:
+        equation_model=marker_settings.TEXIFY_MODEL_NAME
+    equation= load_model(checkpoint=equation_model,
+                       device=marker_settings.TORCH_DEVICE_MODEL,
+                       dtype=marker_settings.TEXIFY_DTYPE)
+    return [equation, layout, order, edit]
+    
+#global_models = load_all_models(marker_settings)
+#download model if necessary
+def check_or_download_models(models_list):
+    for model in models_list:
+        if model:
+            model_name = model.config.name_or_path.split('/')[-1] # extract the model name from its config
+            model_path= default_model_dir / model_name
+            if not model_path.is_dir():
+                print("saving model {} to {}".format(model_name,model_path))
+                model.save_pretrained(model_path.as_posix())
 
 
 class PDFExtract():
@@ -27,7 +109,8 @@ class PDFExtract():
         self.img_dir.mkdir(parents=True, exist_ok=True)
         self.doc_path=doc_path
         self.image_list=list()
-        self.model_lst = load_all_models()
+        self.model_lst = load_all_models(marker_settings)
+        check_or_download_models(self.model_lst)
 
     def extract_text(self):
         full_text, out_meta = convert_single_pdf(self.doc_path.as_posix(), self.model_lst, max_pages=None, parallel_factor=2,metadata={})
