@@ -162,6 +162,7 @@ def download_file(url: str) -> UploadFile:
         file_bytes = BytesIO(response.read())
         header = response.getheader('Content-Disposition')
         match = re.search('filename=([^;\n]+)', header)
+        #print(match)
         filename = match.group(1) if match else 'file.pdf'
     return filename, file_bytes
     
@@ -193,7 +194,7 @@ async def post_index(request: Request):
             with tempfile.NamedTemporaryFile(prefix=prefix, suffix="." + suffix) as temp_file:
                 temp_file.write(file_bytes.getvalue())
                 temp_file.seek(0)
-                upload_file=UploadFile(filename=prefix, file=temp_file)
+                upload_file=UploadFile(filename=filename, file=temp_file)
                 result= await extract(request=request,file=upload_file)
         
         # Create a BytesIO object to hold the contents of the response
@@ -235,6 +236,7 @@ async def extract(request: Request, file: UploadFile = File(...)) -> StreamingRe
     extractor=PDFExtract(doc_path=doc_path)
     extractor.extract_images()
     extractor.extract_text()
+    extractor.paste_links_to_md()
     zip_file_buffer=extractor.zip_results()
     zip_name=extractor.outname
     del extractor

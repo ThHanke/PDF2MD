@@ -21,6 +21,9 @@ from marker.convert import convert_single_pdf
 from marker.settings import Settings as marker_Settings
 
 marker_settings=marker_Settings(TORCH_DEVICE="cpu")
+#marker_settings.ENABLE_EDITOR_MODEL=True
+#marker_settings.DEBUG=True
+#marker_settings.BAD_SPAN_TYPES = ["Caption", "Footnote", "Page-footer", "Page-header"]
 print(marker_settings)
 def load_all_models(marker_settings):
     local_edit_model=default_model_dir/ "edit"
@@ -105,36 +108,40 @@ class PDFExtract():
         #shorten th name if necessarry
         self.outname = (self.outname[:50]) if len(self.outname) > 50 else self.outname
         self.out_dir=output_dir / self.outname
+        filename=self.outname+".md"
+        self.out_file = self.out_dir / filename
         self.img_dir = self.out_dir / "images"  # found images are stored in this subfolder
         self.img_dir.mkdir(parents=True, exist_ok=True)
         self.doc_path=doc_path
         self.image_list=list()
         self.model_lst = load_all_models(marker_settings)
         check_or_download_models(self.model_lst)
-
+        self.page_count=None
     def extract_text(self):
         full_text, out_meta = convert_single_pdf(self.doc_path.as_posix(), self.model_lst, max_pages=None, parallel_factor=2,metadata={})
-        outname=self.outname+".md"
-        with open(self.out_dir / outname, "w+", encoding='utf-8') as f:
+        with open(self.out_file, "w+", encoding='utf-8') as f:
             f.write(full_text)
         outname=self.outname+"_meta.json"
         with open(self.out_dir / outname, "w+") as f:
             f.write(json.dumps(out_meta, indent=4))
-    def zip_results(self):
+    def zip_results(self, delete_files=True):
         zip_file_buffer = zip_folder(self.out_dir.as_posix())
-        self.doc_path.unlink()
-        shutil.rmtree(self.out_dir.as_posix())
+        if delete_files:
+            self.doc_path.unlink()
+            shutil.rmtree(self.out_dir.as_posix())
         return zip_file_buffer
     def extract_images(self):
         t0 = time.time()
         doc=fitz.open(self.doc_path)
-        page_count = doc.page_count  # number of pages
+        self.page_count = doc.page_count  # number of pages
         xreflist = []
         imglist = []
-        for pno in range(page_count):
+        for pno in range(self.page_count):
             #pno=6
             page = doc.load_page(pno)
             page.clean_contents()
+            # Get the page size
+            page_width, page_height = page.mediabox_size
             image_infos=page.get_image_info()
             page_images=[]
             il = doc.get_page_images(pno)
@@ -162,8 +169,17 @@ class PDFExtract():
                 if len(imgdata) / (width * height * n) <= self.relsize:
                     continue
                 
+                # Calculate the relative position
+                rel_x = float(x1) / page_width
+                rel_y = float(y1) / page_height
+
+                # Calculate the overall relative position
+                overall_rel_x = (pno + rel_x) / self.page_count
+                overall_rel_y = (pno + rel_y) / self.page_count
+                #print(pno,rel_y,page_height,overall_rel_y)
+
                 xreflist.append(xref)
-                page_images.append((x1,y1,width,height,xref,pno,image["ext"],imgdata))
+                page_images.append((x1,y1,width,height,xref,pno,overall_rel_x,overall_rel_y,image["ext"],imgdata))
             sorted_list = sorted(page_images)
             #[print(entry[:-1]) for entry in sorted_list]
             imglist.extend(sorted_list)
@@ -172,16 +188,18 @@ class PDFExtract():
         for i,image in enumerate(imglist):
             xref=image[4]
             pno=image[5]
-            ext=image[6]
+            ext=image[-2]
             x1=image[0]
             y1=image[1]
+            orel_x=image[-4]
+            orel_y=image[-3]
             imgdata=image[-1]
             image_name="img%05ipage%iref%ix%iy%i.%s" % (i, pno, xref, x1, y1,ext)
             imgfile = self.img_dir / image_name
             fout = open(imgfile, "wb")
             fout.write(imgdata)
             fout.close()
-            self.image_list.append((x1,y1,image[2],image[3],xref,pno,ext,imgfile))
+            self.image_list.append((x1,y1,image[2],image[3],xref,pno,orel_x,orel_y,ext,imgfile))
                 
         t1 = time.time()
         print(len(set(self.image_list)), "images in total")
@@ -230,32 +248,64 @@ class PDFExtract():
     def merge_images(self):
         rects=[image_stats[:4] for image_stats in self.image_list]
         to_merge=None
+        image_list=self.image_list.copy()
         for i, image_stats in enumerate(self.image_list):
             #print(i,image_stats[-1].name)
             overlapping=[i for i, rect in enumerate(rects) if overlapping_edge(image_stats[:4],rect,tolerance=0.01,same_width=True)]
             if not to_merge or i not in to_merge:
                 if to_merge and len(to_merge)>1:
                     #probably stack complete lets stitch together
-                    #print([self.image_list[hit][-1].name for hit in to_merge])
-                    if stitch([self.image_list[hit][-1].as_posix() for hit in to_merge],delete=True):
+                    merge_images_paths=[self.image_list[hit][-1] for hit in to_merge]
+                    if stitch([hit.as_posix() for hit in merge_images_paths],delete=True):
                         print("merged: {}".format([self.image_list[hit][-1].name for hit in to_merge]))
+                        #remove images for images_list
+                        image_list=[entry for entry in image_list if entry[-1] not in merge_images_paths[1:]]
                 to_merge=OrderedSet([i,])
             if overlapping:
                 to_merge.update(overlapping)
+        #update image_list
+        self.image_list=image_list
+    def paste_links_to_md(self):
+        md_file=self.out_file
+        with open(md_file, 'r') as f:
+            file_content = f.read()
+        
+            # Split the file content into blocks
+            blocks = list(filter(bool, file_content.split('\n\n')))
+            # Calculate the cumulative block lengths
+            block_lengths = [len(block) for block in blocks]
+            cumulative_lengths = [sum(block_lengths[:i+1]) for i in range(len(block_lengths))]
+            #print([(i,block_lengths[i],cumulative_lengths[i],blocks[i][-50:]) for i in range(len(block_lengths))])
+        for image_stats in self.image_list[::1]:
+            imgfile = image_stats[-1]
 
+            relative_pos=image_stats[-3]
+            cumulative_pos=int(sum(block_lengths) * relative_pos)
+
+            # Find the block where the cumulative length is just over the relative position
+            insert_pos = next((i for i, cumulative_length in enumerate(cumulative_lengths) 
+                            if cumulative_length > cumulative_pos), len(blocks))
+            image_link = f'![{imgfile.name}]({Path(os.path.relpath(imgfile, start=md_file.parent))})\n'
+            # Insert the image link at the appropriate position
+            #print(relative_pos,insert_pos,image_link)
+            blocks.insert(insert_pos, image_link)
+        # Join the blocks back together
+        new_content = '\n\n'.join(blocks)
+        with open(self.out_file, 'w') as f:
+            f.write(new_content)
 def zip_folder(folder_path: str):
     # Create an in-memory byte stream
     zip_buffer = io.BytesIO()
-
+    folder_path = Path(folder_path)
     # Create a ZipFile object with the in-memory byte stream
     with zipfile.ZipFile(zip_buffer, mode='w') as zip_file:
         # Loop through all files in the folder
-        for filename in os.listdir(folder_path):
-            # Get the full file path
-            file_path = os.path.join(folder_path, filename)
-            # Add the file to the zip archive
-            zip_file.write(file_path, arcname=filename)
-
+        for file in folder_path.rglob('*'):
+            if file.is_file():
+                # Get the relative path for the file which is needed for writing into the zipfile
+                relative_path = file.relative_to(folder_path)
+                # Add the file to the zip archive
+                zip_file.write(file, arcname=str(relative_path))
     # Reset the in-memory byte stream to the beginning
     zip_buffer.seek(0)
     return zip_buffer
@@ -287,11 +337,15 @@ def overlapping_edge(rect1, rect2, tolerance=1.0, same_width=False):  # you can 
     return None
 
 def stitch(images,delete=True):
+    stitch=None
     for i, image in enumerate(images):
         img = cv2.imread(image)
+        
         if i==0:
             stitched = img
             img_name=images[0]
+            continue
+        if img is None or stitch is None:
             continue
         if stitched.shape[1] == img.shape[1]:
             stitched = np.vstack((stitched, img))

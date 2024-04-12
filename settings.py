@@ -1,12 +1,6 @@
 import os
 from pydantic_settings import BaseSettings
 
-from marker.settings import Settings as Marker_Settings
-
-TORCH_DEVICE_MODEL="cpu"
-#TORCH_DEVICE_MODEL="cuda"
-
-#marker_settings = Marker_Settings(TORCH_DEVICE=TORCH_DEVICE_MODEL)
 class Setting(BaseSettings):
     name: str = str(os.environ.get("APP_NAME","PDF2MD"))
     contact_name: str = str(os.environ.get("ADMIN_NAME","Thomas Hanke"))
