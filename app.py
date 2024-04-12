@@ -16,7 +16,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import HTMLResponse
 from wtforms import URLField, SelectField, FileField
 
-#from starlette.middleware.cors import CORSMiddleware
+# from starlette.middleware.cors import CORSMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -33,67 +33,86 @@ from rdflib.namespace import PROV, RDF, RDFS, XSD
 from rdflib.util import guess_format
 
 import settings
+
 setting = settings.Setting()
 
 from enum import Enum
 
 from pdfextract import PDFExtract
 from pathlib import Path
-default_extract_dir=Path.cwd() / "extract"
+
+default_extract_dir = Path.cwd() / "extract"
+
 
 def add_prov(graph: Graph, api_url: str, data_url: str) -> Graph:
-    """ Add prov-o information to output graph
+    """Add prov-o information to output graph
 
     Args:
         graph (Graph): Graph to add prov information to
-        api_url (str): the api url 
+        api_url (str): the api url
         data_url (str): the url to the rdf file that was used
 
     Returns:
-        Graph: Input Graph with prov metadata of the api call 
+        Graph: Input Graph with prov metadata of the api call
     """
-    graph.bind('prov',PROV)
-    
-    root=BNode()
-    api_node=URIRef(api_url)
-    graph.add((root,PROV.wasGeneratedBy,api_node))
-    graph.add((api_node,RDF.type,PROV.Activity))
-    software_node=URIRef(setting.source+"/releases/tag/"+setting.version)
-    graph.add((api_node,PROV.wasAssociatedWith,software_node))
-    graph.add((software_node,RDF.type,PROV.SoftwareAgent))
-    graph.add((software_node,RDFS.label,Literal( setting.name+setting.version)))
-    graph.add((software_node,PROV.hadPrimarySource,URIRef(setting.source)))
-    graph.add((root,PROV.generatedAtTime,Literal(str(datetime.now().isoformat()),datatype=XSD.dateTime)))
-    entity=URIRef(str(data_url))
-    graph.add((entity,RDF.type,PROV.Entity))
-    derivation=BNode()
-    graph.add((derivation,RDF.type,PROV.Derivation))
-    graph.add((derivation,PROV.entity,entity))
-    graph.add((derivation,PROV.hadActivity,api_node))
-    graph.add((root,PROV.qualifiedDerivation,derivation))
-    graph.add((root,PROV.wasDerivedFrom,entity))
-    
+    graph.bind("prov", PROV)
+
+    root = BNode()
+    api_node = URIRef(api_url)
+    graph.add((root, PROV.wasGeneratedBy, api_node))
+    graph.add((api_node, RDF.type, PROV.Activity))
+    software_node = URIRef(setting.source + "/releases/tag/" + setting.version)
+    graph.add((api_node, PROV.wasAssociatedWith, software_node))
+    graph.add((software_node, RDF.type, PROV.SoftwareAgent))
+    graph.add((software_node, RDFS.label, Literal(setting.name + setting.version)))
+    graph.add((software_node, PROV.hadPrimarySource, URIRef(setting.source)))
+    graph.add(
+        (
+            root,
+            PROV.generatedAtTime,
+            Literal(str(datetime.now().isoformat()), datatype=XSD.dateTime),
+        )
+    )
+    entity = URIRef(str(data_url))
+    graph.add((entity, RDF.type, PROV.Entity))
+    derivation = BNode()
+    graph.add((derivation, RDF.type, PROV.Derivation))
+    graph.add((derivation, PROV.entity, entity))
+    graph.add((derivation, PROV.hadActivity, api_node))
+    graph.add((root, PROV.qualifiedDerivation, derivation))
+    graph.add((root, PROV.wasDerivedFrom, entity))
+
     return graph
 
-#flash integration flike flask flash
+
+# flash integration flike flask flash
 def flash(request: Request, message: Any, category: str = "info") -> None:
     if "_messages" not in request.session:
         request.session["_messages"] = []
     request.session["_messages"].append({"message": message, "category": category})
 
+
 def get_flashed_messages(request: Request):
     return request.session.pop("_messages") if "_messages" in request.session else []
 
+
 middleware = [
-    Middleware(SessionMiddleware, secret_key=os.environ.get('APP_SECRET','changemeNOW')),
-    Middleware(CSRFProtectMiddleware, csrf_secret=os.environ.get('APP_SECRET','changemeNOW')),
-    Middleware(CORSMiddleware, 
-            allow_origins=["*"], # Allows all origins
-            allow_methods=["*"], # Allows all methods
-            allow_headers=["*"] # Allows all headers
-            ),
-    Middleware(uvicorn.middleware.proxy_headers.ProxyHeadersMiddleware, trusted_hosts="*")
-    ]
+    Middleware(
+        SessionMiddleware, secret_key=os.environ.get("APP_SECRET", "changemeNOW")
+    ),
+    Middleware(
+        CSRFProtectMiddleware, csrf_secret=os.environ.get("APP_SECRET", "changemeNOW")
+    ),
+    Middleware(
+        CORSMiddleware,
+        allow_origins=["*"],  # Allows all origins
+        allow_methods=["*"],  # Allows all methods
+        allow_headers=["*"],  # Allows all headers
+    ),
+    Middleware(
+        uvicorn.middleware.proxy_headers.ProxyHeadersMiddleware, trusted_hosts="*"
+    ),
+]
 
 tags_metadata = [
     {
@@ -106,7 +125,11 @@ app = FastAPI(
     title=setting.name,
     description=setting.desc,
     version=setting.version,
-    contact={"name": setting.contact_name, "url": setting.org_site, "email": setting.admin_email},
+    contact={
+        "name": setting.contact_name,
+        "url": setting.org_site,
+        "email": setting.admin_email,
+    },
     license_info={
         "name": "Apache 2.0",
         "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
@@ -115,88 +138,97 @@ app = FastAPI(
     openapi_tags=tags_metadata,
     docs_url=setting.docs_url,
     redoc_url=None,
-    swagger_ui_parameters= {'syntaxHighlight': False},
-    #swagger_favicon_url="/static/resources/favicon.svg",
-    middleware=middleware
+    swagger_ui_parameters={"syntaxHighlight": False},
+    # swagger_favicon_url="/static/resources/favicon.svg",
+    middleware=middleware,
 )
 
 
-app.mount("/static/", StaticFiles(directory='static', html=True), name="static")
-templates= Jinja2Templates(directory="templates")
-templates.env.globals['get_flashed_messages'] = get_flashed_messages
+app.mount("/static/", StaticFiles(directory="static", html=True), name="static")
+templates = Jinja2Templates(directory="templates")
+templates.env.globals["get_flashed_messages"] = get_flashed_messages
 
 logging.basicConfig(level=logging.DEBUG)
 
 
 class StartFormUri(StarletteForm):
     data_url = URLField(
-        'URL Data File',
-        #validators=[DataRequired()],
-        description='Paste URL to a data file, e.g. csv, TRA',
-        #validators=[DataRequired(message='Either URL to data file or file upload is required.')],
-        render_kw={"class":"form-control", "placeholder": "https://futurecarproduction.materialsdata.space/dataset/5b20ebba-e300-40d5-b117-514af70a65e8/resource/841ec7b1-1fc0-4a23-b577-aa2ca22fa54a/download/prot-coolcast-06-2019_ds1.pdf"},
+        "URL Data File",
+        # validators=[DataRequired()],
+        description="Paste URL to a data file, e.g. csv, TRA",
+        # validators=[DataRequired(message='Either URL to data file or file upload is required.')],
+        render_kw={
+            "class": "form-control",
+            "placeholder": "https://www.iwm.fraunhofer.de/content/dam/iwm/de/warum-fraunhofer-iwm/kernkompetenzen-technische-moeglichkeiten/Institutsbroschuere_Werkstoffeigenschaften_i_d__g_FraunhoferIWM.pdf",
+        },
     )
-    file=FileField(
-        'Upload File',
-        description='Upload your File here.',
-        render_kw={"class":"form-control", "placeholder": "Your File"},
+    file = FileField(
+        "Upload File",
+        description="Upload your File here.",
+        render_kw={"class": "form-control", "placeholder": "Your File"},
     )
 
 
-@app.get('/', response_class=HTMLResponse, include_in_schema=False)
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
 @csrf_protect
 async def get_index(request: Request):
-    """GET /: form handler
-    """
-    template="index.html"
+    """GET /: form handler"""
+    template = "index.html"
     form = await StartFormUri.from_formdata(request)
-    return templates.TemplateResponse(template, {"request": request,
-        "form": form,
-        "result": '',
-        "setting": setting
-        }
+    return templates.TemplateResponse(
+        template, {"request": request, "form": form, "result": "", "setting": setting}
     )
+
 
 def download_file(url: str) -> UploadFile:
     with urlopen(url) as response:
         file_bytes = BytesIO(response.read())
-        header = response.getheader('Content-Disposition')
-        match = re.search('filename=([^;\n]+)', header)
-        #print(match)
-        filename = match.group(1) if match else 'file.pdf'
+        if "Content-Disposition" in response.headers:
+            header = response.getheader("Content-Disposition")
+            match = re.search("filename=([^;\n]+)", header)
+            filename = match.group(1) if match else None
+        else:
+            filename = url.rsplit("/", 1)[-1]
+        if not filename:
+            filename = "file.pdf"
     return filename, file_bytes
-    
+
+
 import tempfile
 
-@app.post('/', response_class=HTMLResponse, include_in_schema=False)
+
+@app.post("/", response_class=HTMLResponse, include_in_schema=False)
 @csrf_protect
 async def post_index(request: Request):
-    """POST /: form handler
-    """
-    template="index.html"
+    """POST /: form handler"""
+    template = "index.html"
     form = await StartFormUri.from_formdata(request)
-    result = ''
-    filename = ''
-    payload= ''
+    result = ""
+    filename = ""
+    payload = ""
     if not (form.data_url.data or form.file.data.filename):
-        msg='URL Data File empty: using placeholder value for demonstration.'
-        logging.debug('URL Data File empty: using placeholder value for demonstration.')
-        form.data_url.data=form.data_url.render_kw['placeholder']
-        flash(request,msg,'info')
+        msg = "URL Data File empty: using placeholder value for demonstration."
+        logging.debug("URL Data File empty: using placeholder value for demonstration.")
+        form.data_url.data = form.data_url.render_kw["placeholder"]
+        flash(request, msg, "info")
     if await form.validate_on_submit():
         if form.file.data.filename:
-            upload_file=UploadFile(filename=form.file.data.filename, file=form.file.data.file)
-            result= await extract(request=request,file=upload_file)
+            upload_file = UploadFile(
+                filename=form.file.data.filename, file=form.file.data.file
+            )
+            result = await extract(request=request, file=upload_file)
         elif form.data_url.data:
-            data_url=form.data_url.data
-            filename, file_bytes=download_file(data_url)
+            data_url = form.data_url.data
+            filename, file_bytes = download_file(data_url)
             prefix, suffix = filename.rsplit(".", 1)
-            with tempfile.NamedTemporaryFile(prefix=prefix, suffix="." + suffix) as temp_file:
+            with tempfile.NamedTemporaryFile(
+                prefix=prefix, suffix="." + suffix
+            ) as temp_file:
                 temp_file.write(file_bytes.getvalue())
                 temp_file.seek(0)
-                upload_file=UploadFile(filename=filename, file=temp_file)
-                result= await extract(request=request,file=upload_file)
-        
+                upload_file = UploadFile(filename=filename, file=temp_file)
+                result = await extract(request=request, file=upload_file)
+
         # Create a BytesIO object to hold the contents of the response
         file_buffer = BytesIO()
         async for chunk in result.body_iterator:
@@ -205,15 +237,18 @@ async def post_index(request: Request):
         b64 = base64.b64encode(file_buffer.getvalue())
         payload = b64.decode()
         header = result.headers.get("Content-Disposition")
-        match = re.search('filename=([^;\n]+)', header)
-        filename = match.group(1) if match else 'file.zip'
-    return templates.TemplateResponse(template, {"request": request,
-        "form": form,
-        "result": result,
-        "filename": filename,
-        "payload": payload,
-        "setting": setting
-        }
+        match = re.search("filename=([^;\n]+)", header)
+        filename = match.group(1) if match else "file.zip"
+    return templates.TemplateResponse(
+        template,
+        {
+            "request": request,
+            "form": form,
+            "result": result,
+            "filename": filename,
+            "payload": payload,
+            "setting": setting,
+        },
     )
 
 
@@ -230,24 +265,28 @@ async def extract(request: Request, file: UploadFile = File(...)) -> StreamingRe
     Returns:
         StreamingResponse: RDF Output File as Streaming Response
     """
-    doc_path=default_extract_dir / file.filename
+    doc_path = default_extract_dir / file.filename
     with open(default_extract_dir / file.filename, "wb") as f:
         f.write(await file.read())
-    extractor=PDFExtract(doc_path=doc_path)
-    extractor.extract_images()
+    extractor = PDFExtract(doc_path=doc_path)
     extractor.extract_text()
-    extractor.paste_links_to_md()
-    zip_file_buffer=extractor.zip_results()
-    zip_name=extractor.outname
+    extractor.extract_images()
+    extractor.paste_img_links_to_md()
+    zip_file_buffer = extractor.zip_results()
+    zip_name = extractor.outname
     del extractor
     headers = {
-        'Content-Disposition': 'attachment; filename={}'.format(zip_name+'.zip'),
-        'Access-Control-Expose-Headers': 'Content-Disposition'
+        "Content-Disposition": "attachment; filename={}".format(zip_name + ".zip"),
+        "Access-Control-Expose-Headers": "Content-Disposition",
     }
-    media_type='application/zip'
-    response=StreamingResponse(iter([zip_file_buffer.getvalue()]), media_type=media_type, headers=headers)
+    media_type = "application/zip"
+    response = StreamingResponse(
+        iter([zip_file_buffer.getvalue()]), media_type=media_type, headers=headers
+    )
 
     return response
+
+
 @app.get("/info", response_model=settings.Setting)
 async def info() -> dict:
     """App Information
@@ -257,8 +296,11 @@ async def info() -> dict:
     """
     return setting
 
-#time http calls
+
+# time http calls
 from time import time
+
+
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
     start_time = time()
@@ -267,17 +309,17 @@ async def add_process_time_header(request: Request, call_next):
     response.headers["X-Process-Time"] = str(process_time)
     return response
 
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app_mode=os.environ.get("APP_MODE") or 'production'
-    if app_mode=='development':
-        reload=True
-        access_log=True
+    app_mode = os.environ.get("APP_MODE") or "production"
+    if app_mode == "development":
+        reload = True
+        access_log = True
     else:
-        reload=False
-        access_log=False
-        "--workers", "6","--proxy-headers"
-    uvicorn.run("app:app",host="0.0.0.0",port=port, reload=reload, access_log=access_log)
-
-
-    
+        reload = False
+        access_log = False
+        "--workers", "6", "--proxy-headers"
+    uvicorn.run(
+        "app:app", host="0.0.0.0", port=port, reload=reload, access_log=access_log
+    )
