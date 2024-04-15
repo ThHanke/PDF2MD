@@ -153,18 +153,18 @@ logging.basicConfig(level=logging.DEBUG)
 
 class StartFormUri(StarletteForm):
     data_url = URLField(
-        "URL Data File",
+        "URL PDF File",
         # validators=[DataRequired()],
-        description="Paste URL to a data file, e.g. csv, TRA",
+        description="Paste a URL to a pdf file.",
         # validators=[DataRequired(message='Either URL to data file or file upload is required.')],
         render_kw={
             "class": "form-control",
-            "placeholder": "https://www.iwm.fraunhofer.de/content/dam/iwm/de/warum-fraunhofer-iwm/kernkompetenzen-technische-moeglichkeiten/Institutsbroschuere_Werkstoffeigenschaften_i_d__g_FraunhoferIWM.pdf",
+            "placeholder": "https://css4.pub/2015/textbook/somatosensory.pdf",
         },
     )
     file = FileField(
         "Upload File",
-        description="Upload your File here.",
+        description="Upload your PDF File here.",
         render_kw={"class": "form-control", "placeholder": "Your File"},
     )
 
