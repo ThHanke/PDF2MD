@@ -1,7 +1,7 @@
 version: "3.9"
 services:
   app:
-    build: .
+    image: ghcr.io/thhanke/pdf2md:latest
     container_name: ${APP_NAME}
     env_file:
     - .env
