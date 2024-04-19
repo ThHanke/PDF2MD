@@ -107,7 +107,9 @@ def check_or_download_models(models_list):
             model_path = default_model_dir / model_name
             if not model_path.is_dir():
                 print("saving model {} to {}".format(model_name, model_path))
-                model.save_pretrained(model_path.as_posix())
+                # needed because of https://github.com/huggingface/transformers/issues/27293
+                model.save_pretrained(model_path.as_posix(), safe_serialization=False)
+                # model.save_pretrained(model_path.as_posix())
 
 
 class PDFExtract:
