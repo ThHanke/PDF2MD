@@ -29,6 +29,10 @@ RUN apt-get install -y apt-transport-https && \
     apt update --quiet
 RUN apt install -y tesseract-ocr tesseract-ocr-eng tesseract-ocr-deu
 
+#install opencv
+RUN apt-get install -y libopencv-dev python3-opencv && \
+    apt clean && rm -rf /var/lib/apt/lists/*
+
 #install requirements - remember conda is installed in that image
 ADD . /src
 WORKDIR /src

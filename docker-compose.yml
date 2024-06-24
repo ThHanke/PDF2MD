@@ -1,6 +1,7 @@
 version: "3.9"
 services:
   app:
+    #build: .
     image: ghcr.io/thhanke/pdf2md:latest
     container_name: ${APP_NAME}
     env_file:
@@ -10,6 +11,8 @@ services:
     #restart: always
     networks:
       - app_net
+    volumes:
+      - ./models:/src/models
     deploy:
       resources:
         limits:
