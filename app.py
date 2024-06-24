@@ -272,7 +272,7 @@ async def extract(request: Request, file: UploadFile = File(...)) -> StreamingRe
     extractor.extract()
     # extractor.extract_images()
     extractor.fix_links_in_md()
-    zip_file_buffer = extractor.zip_results(delete_files=False)
+    zip_file_buffer = extractor.zip_results()
     zip_name = extractor.outname
     del extractor
     headers = {
