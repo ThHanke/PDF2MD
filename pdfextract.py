@@ -245,7 +245,10 @@ class PDFExtract:
             file_content = f.read()
         for image_key in self.image_dict.keys():
             file_content = re.sub(
-                "{}".format(image_key), "images/{}".format(image_key), file_content
+                "{}".format(image_key),
+                "images/{}".format(image_key),
+                file_content,
+                flags=re.IGNORECASE,
             )
         with open(md_file, "w") as f:
             f.write(file_content)
