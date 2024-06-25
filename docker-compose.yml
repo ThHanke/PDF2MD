@@ -15,9 +15,9 @@ services:
       - ./models:/src/models
     deploy:
       resources:
-        limits:
-          cpus: '8.00'
-          memory: 8G
+        #limits:
+        #  cpus: '8.00'
+        #  memory: 10G
         reservations:
           cpus: '1.00'
           memory: 6G

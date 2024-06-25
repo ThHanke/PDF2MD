@@ -14,16 +14,19 @@ from marker.settings import Settings as marker_Settings
 from marker.models import load_all_models as marker_load_all_models
 
 settings = marker_Settings(TORCH_DEVICE="cpu")
+settings.DEBUG = True
+settings.DEBUG_LEVEL = 2
+
 # settings.ENABLE_EDITOR_MODEL = True
 # marker_settings.DEBUG=True
 # marker_settings.BAD_SPAN_TYPES = ["Caption", "Footnote", "Page-footer", "Page-header"]
-print(settings)
+# print(settings)
 model_name_keys = [
     key
     for key in settings.dict().keys()
     if any(map(key.__contains__, ["MODEL_NAME", "MODEL_CHECKPOINT"]))
 ]
-print(model_name_keys)
+# print(model_name_keys)
 texify_folder = default_model_dir / "texify"
 layout_folder = default_model_dir / "surya_layout2"
 order_folder = default_model_dir / "surya_order"
@@ -216,6 +219,7 @@ class PDFExtract:
         self.page_count = None
 
     def extract(self):
+        print("start processing {}".format(self.doc_path.name))
         full_text, doc_images, out_meta = convert_single_pdf(
             self.doc_path.as_posix(),
             self.model_lst,
