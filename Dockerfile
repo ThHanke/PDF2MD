@@ -1,7 +1,7 @@
 FROM pytorch/pytorch:2.1.2-cuda11.8-cudnn8-runtime AS base
 ENV DEBIAN_FRONTEND noninteractive
 ENV TZ=Europe/Berlin
-RUN buildDeps='locales curl wget build-essential software-properties-common libmagic1 libxml2 git' \
+RUN buildDeps='locales curl wget build-essential software-properties-common libmagic1 libxml2 git python3-opencv' \
     && set -x \
     && apt-get update && apt-get install -y $buildDeps --no-install-recommends \
     && sed -i 's/^# en_US.UTF-8 UTF-8$/en_US.UTF-8 UTF-8/g' /etc/locale.gen \
@@ -28,10 +28,6 @@ RUN apt-get install -y apt-transport-https && \
     add-apt-repository ppa:alex-p/tesseract-ocr5 && \
     apt update --quiet
 RUN apt install -y tesseract-ocr tesseract-ocr-eng tesseract-ocr-deu
-
-#install opencv
-RUN apt-get install -y libopencv-dev python3-opencv && \
-    apt clean && rm -rf /var/lib/apt/lists/*
 
 #install requirements - remember conda is installed in that image
 ADD . /src
