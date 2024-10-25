@@ -20,7 +20,7 @@ from wtforms import URLField, SelectField, FileField
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi import Request, HTTPException, FastAPI
+from fastapi import Request, HTTPException, FastAPI, Depends
 from fastapi.responses import StreamingResponse
 from fastapi import UploadFile, File
 
@@ -39,9 +39,20 @@ setting = settings.Setting()
 from enum import Enum
 
 from pdfextract import PDFExtract
+from marker.models import load_all_models as marker_load_all_models
 from pathlib import Path
 
 default_extract_dir = Path.cwd() / "extract"
+
+# Global variable to cache the resource
+cached_models = None
+
+
+def get_cached_models():
+    global cached_models
+    if cached_models is None:
+        cached_models = marker_load_all_models()
+    return cached_models
 
 
 def add_prov(graph: Graph, api_url: str, data_url: str) -> Graph:
@@ -253,7 +264,10 @@ async def post_index(request: Request):
 
 
 @app.post("/api/extract", tags=["extract transform"])
-async def extract(request: Request, file: UploadFile = File(...)) -> StreamingResponse:
+async def extract(
+    request: Request,
+    file: UploadFile = File(...),
+) -> StreamingResponse:
     """Converts a rdf file on the web to the specified serializatio format.
 
     Args:
@@ -265,10 +279,11 @@ async def extract(request: Request, file: UploadFile = File(...)) -> StreamingRe
     Returns:
         StreamingResponse: RDF Output File as Streaming Response
     """
+    models = get_cached_models()  # Directly call the caching function
     doc_path = default_extract_dir / file.filename
     with open(default_extract_dir / file.filename, "wb") as f:
         f.write(await file.read())
-    extractor = PDFExtract(doc_path=doc_path)
+    extractor = PDFExtract(shared_models=models, doc_path=doc_path)
     extractor.extract_text()
     zip_file_buffer = extractor.zip_results()
     zip_name = extractor.outname

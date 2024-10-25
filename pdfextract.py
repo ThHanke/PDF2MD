@@ -16,7 +16,7 @@ from marker.settings import Settings as marker_Settings
 
 marker_settings = marker_Settings(TORCH_DEVICE=os.getenv("TORCH_DEVICE", "cpu"))
 # marker_settings.DEBUG=True
-print(marker_settings)
+# print(marker_settings)
 
 from marker.models import load_all_models as marker_load_all_models
 
@@ -101,7 +101,8 @@ def check_or_download_models(models_list):
 class PDFExtract:
     def __init__(
         self,
-        doc_path: Path,
+        shared_models: list = [],
+        doc_path: Path = None,
         output_dir: Path = default_out_dir,
         dimlimit: int = 10,
         relsize: float = 0.01,
@@ -126,8 +127,11 @@ class PDFExtract:
         self.img_dir.mkdir(parents=True, exist_ok=True)
         self.doc_path = doc_path
         self.image_list = list()
-        self.model_lst = load_all_models(marker_settings)
-        check_or_download_models(self.model_lst)
+        if shared_models:
+            self.model_lst = shared_models
+        else:
+            self.model_lst = marker_load_all_models()
+        # check_or_download_models(self.model_lst)
         self.page_count = None
 
     def extract_text(self):
