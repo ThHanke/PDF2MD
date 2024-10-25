@@ -270,8 +270,6 @@ async def extract(request: Request, file: UploadFile = File(...)) -> StreamingRe
         f.write(await file.read())
     extractor = PDFExtract(doc_path=doc_path)
     extractor.extract_text()
-    extractor.extract_images()
-    extractor.paste_img_links_to_md()
     zip_file_buffer = extractor.zip_results()
     zip_name = extractor.outname
     del extractor
