@@ -127,13 +127,16 @@ async def lifespan(app: FastAPI):
     """
     Lifespan event handler for startup and shutdown.
     """
-    # Startup: Load models
-    global cached_models
-    print("Preloading models during lifespan startup...")
-    cached_models.update(load_models())
-    yield  # Wait here until the app shuts down
-    # Shutdown: Perform cleanup (if needed)
-    print("Lifespan shutdown: cleaning up resources...")
+    try:
+        print("Preloading models during lifespan startup...")
+        cached_models.update(load_models())
+        print("Lifespan startup complete: models loaded!")
+        yield  # Keep the app running until shutdown
+    except Exception as e:
+        print(f"Error during lifespan startup: {e}")
+        raise  # Re-raise exception to prevent silent failures
+    finally:
+        print("Lifespan shutdown: cleaning up resources...")
 
 
 app = FastAPI(
@@ -329,19 +332,31 @@ async def add_process_time_header(request: Request, call_next):
     return response
 
 
+import multiprocessing
+
 if __name__ == "__main__":
+    multiprocessing.set_start_method("spawn", force=True)
     print("Preloading models in the main process...")
     cached_models.update(load_models())
     print("Models preloaded successfully!")
     port = int(os.environ.get("PORT", 5000))
     app_mode = os.environ.get("APP_MODE") or "production"
     if app_mode == "development":
+        log_level = "debug"
         reload = True
         access_log = True
         host = "0.0.0.0"
     else:
+        log_level = "info"
         reload = False
         access_log = False
         host = None
         "--workers", "1", "--proxy-headers"
-    uvicorn.run("app:app", host=host, port=port, reload=reload, access_log=access_log)
+    uvicorn.run(
+        "app:app",
+        host=host,
+        port=port,
+        reload=reload,
+        access_log=access_log,
+        log_level=log_level,
+    )

@@ -83,7 +83,7 @@ class PDFExtract:
         print(f"Total time: {time.time() - start}")
 
     def zip_results(self, delete_files=True):
-        zip_file_buffer = zip_folder(self.out_dir.as_posix())
+        zip_file_buffer = zip_folder(self.out_folder.as_posix())
         if delete_files:
             self.doc_path.unlink()
             shutil.rmtree(self.out_dir.as_posix())
