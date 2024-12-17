@@ -7,6 +7,7 @@ starlette-wtf
 jinja2
 fastapi
 uvicorn
+gunicorn
 pydantic>=2.0.0
 pydantic_settings
 requests

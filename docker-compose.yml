@@ -3,17 +3,21 @@ services:
     image: ghcr.io/thhanke/pdf2md:latest
     container_name: ${APP_NAME}
     env_file:
-    - .env
+      - .env
     ports:
       - ${APP_PORT}:5000
     #restart: always
     networks:
       - app_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m" # Specify the maximum size of each log file
     deploy:
       resources:
         limits:
           cpus: '8.00'
-          memory: 8G
+          memory: 12G
         reservations:
           cpus: '1.00'
           memory: 6G
@@ -22,11 +26,11 @@ services:
           #     count: 1
           #     capabilities: [gpu]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/info"]
+      test: [ "CMD", "curl", "-f", "http://localhost:5000/info" ]
       interval: 10s
       timeout: 10s
       retries: 20
-
+    restart: on-failure
 networks:
   app_net:
     name: ${APP_NAME}_net

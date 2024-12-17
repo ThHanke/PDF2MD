@@ -1,7 +1,6 @@
 # app.py
 import os, re
 import base64
-from urllib.parse import urlparse
 from urllib.request import urlopen
 
 from datetime import datetime
@@ -14,45 +13,35 @@ from starlette_wtf import StarletteForm, CSRFProtectMiddleware, csrf_protect
 from starlette.middleware import Middleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import HTMLResponse
-from wtforms import URLField, SelectField, FileField
+from wtforms import URLField, FileField
 
 # from starlette.middleware.cors import CORSMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi import Request, HTTPException, FastAPI, Depends
+from fastapi import Request, FastAPI
 from fastapi.responses import StreamingResponse
 from fastapi import UploadFile, File
+from contextlib import asynccontextmanager
 
 
-from typing import Optional, Any, Union
-from pydantic import BaseModel, AnyUrl, Field, FileUrl
+from typing import Any
 
 from rdflib import Graph, BNode, URIRef, Literal
 from rdflib.namespace import PROV, RDF, RDFS, XSD
-from rdflib.util import guess_format
 
 import settings
 
 setting = settings.Setting()
 
-from enum import Enum
+from pdfextract import PDFExtract, load_models
 
-from pdfextract import PDFExtract
-from marker.models import load_all_models as marker_load_all_models
 from pathlib import Path
 
 default_extract_dir = Path.cwd() / "extract"
 
 # Global variable to cache the resource
-cached_models = None
-
-
-def get_cached_models():
-    global cached_models
-    if cached_models is None:
-        cached_models = marker_load_all_models()
-    return cached_models
+cached_models = {}
 
 
 def add_prov(graph: Graph, api_url: str, data_url: str) -> Graph:
@@ -132,6 +121,21 @@ tags_metadata = [
     }
 ]
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Lifespan event handler for startup and shutdown.
+    """
+    # Startup: Load models
+    global cached_models
+    print("Preloading models during lifespan startup...")
+    cached_models.update(load_models())
+    yield  # Wait here until the app shuts down
+    # Shutdown: Perform cleanup (if needed)
+    print("Lifespan shutdown: cleaning up resources...")
+
+
 app = FastAPI(
     title=setting.name,
     description=setting.desc,
@@ -152,6 +156,7 @@ app = FastAPI(
     swagger_ui_parameters={"syntaxHighlight": False},
     # swagger_favicon_url="/static/resources/favicon.svg",
     middleware=middleware,
+    lifespan=lifespan,
 )
 
 
@@ -279,13 +284,14 @@ async def extract(
     Returns:
         StreamingResponse: RDF Output File as Streaming Response
     """
-    models = get_cached_models()  # Directly call the caching function
+    # models = get_cached_models()  # Directly call the caching function
     doc_path = default_extract_dir / file.filename
     with open(default_extract_dir / file.filename, "wb") as f:
         f.write(await file.read())
-    extractor = PDFExtract(shared_models=models, doc_path=doc_path)
+    global loaded_models
+    extractor = PDFExtract(doc_path=doc_path, models=cached_models)
     extractor.extract_text()
-    zip_file_buffer = extractor.zip_results()
+    zip_file_buffer = extractor.zip_results(delete_files=True)
     zip_name = extractor.outname
     del extractor
     headers = {
@@ -324,15 +330,18 @@ async def add_process_time_header(request: Request, call_next):
 
 
 if __name__ == "__main__":
+    print("Preloading models in the main process...")
+    cached_models.update(load_models())
+    print("Models preloaded successfully!")
     port = int(os.environ.get("PORT", 5000))
     app_mode = os.environ.get("APP_MODE") or "production"
     if app_mode == "development":
         reload = True
         access_log = True
+        host = "0.0.0.0"
     else:
         reload = False
         access_log = False
-        "--workers", "6", "--proxy-headers"
-    uvicorn.run(
-        "app:app", host="0.0.0.0", port=port, reload=reload, access_log=access_log
-    )
+        host = None
+        "--workers", "1", "--proxy-headers"
+    uvicorn.run("app:app", host=host, port=port, reload=reload, access_log=access_log)
