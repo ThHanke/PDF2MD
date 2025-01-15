@@ -17,11 +17,13 @@ from marker.output import save_output
 
 from marker.settings import Settings as marker_Settings
 
-marker_settings = marker_Settings(TORCH_DEVICE=os.getenv("TORCH_DEVICE", "cpu"))
+TORCH_DEVICE = os.getenv("TORCH_DEVICE", "cpu")
+marker_settings = marker_Settings(TORCH_DEVICE=os.getenv("TORCH_DEVICE", TORCH_DEVICE))
 
 
 def load_models():
-    return create_model_dict()
+    print(marker_settings)
+    return create_model_dict(device=TORCH_DEVICE, dtype=marker_settings.MODEL_DTYPE)
 
 
 class PDFExtract:
