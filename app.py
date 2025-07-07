@@ -1,42 +1,41 @@
 # app.py
-import os, re
 import base64
+import logging
+import multiprocessing
+import os
+import re
+import ssl
+import tempfile
+from contextlib import asynccontextmanager
+from datetime import datetime
+from io import BytesIO
+from pathlib import Path
+
+# time http calls
+from time import time
+from typing import Any
 from urllib.request import urlopen
 
-from datetime import datetime
-import logging
-from io import BytesIO
-
 import uvicorn
-
-from starlette_wtf import StarletteForm, CSRFProtectMiddleware, csrf_protect
-from starlette.middleware import Middleware
-from starlette.middleware.sessions import SessionMiddleware
-from starlette.responses import HTMLResponse
-from wtforms import URLField, FileField
+from fastapi import FastAPI, File, Request, UploadFile
 
 # from starlette.middleware.cors import CORSMiddleware
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi import Request, FastAPI
-from fastapi.responses import StreamingResponse
-from fastapi import UploadFile, File
-from contextlib import asynccontextmanager
-
-
-from typing import Any
-
-from rdflib import Graph, BNode, URIRef, Literal
+from rdflib import BNode, Graph, Literal, URIRef
 from rdflib.namespace import PROV, RDF, RDFS, XSD
+from starlette.middleware import Middleware
+from starlette.middleware.sessions import SessionMiddleware
+from starlette.responses import HTMLResponse
+from starlette_wtf import CSRFProtectMiddleware, StarletteForm, csrf_protect
+from wtforms import FileField, URLField
 
 import settings
-
-setting = settings.Setting()
-
 from pdfextract import PDFExtract, load_models
 
-from pathlib import Path
+setting = settings.Setting()
 
 default_extract_dir = Path.cwd() / "extract"
 
@@ -172,9 +171,9 @@ logging.basicConfig(level=logging.DEBUG)
 
 class StartFormUri(StarletteForm):
     data_url = URLField(
-        "URL PDF File",
+        "URL Document File",
         # validators=[DataRequired()],
-        description="Paste a URL to a pdf file.",
+        description="Paste a URL to a document file.",
         # validators=[DataRequired(message='Either URL to data file or file upload is required.')],
         render_kw={
             "class": "form-control",
@@ -183,7 +182,7 @@ class StartFormUri(StarletteForm):
     )
     file = FileField(
         "Upload File",
-        description="Upload your PDF File here.",
+        description="Upload your Document File here.",
         render_kw={"class": "form-control", "placeholder": "Your File"},
     )
 
@@ -200,7 +199,12 @@ async def get_index(request: Request):
 
 
 def download_file(url: str) -> UploadFile:
-    with urlopen(url) as response:
+    ctx = ssl.create_default_context()
+    app_mode = os.environ.get("APP_MODE") or "production"
+    if app_mode == "development":
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+    with urlopen(url, context=ctx) as response:
         file_bytes = BytesIO(response.read())
         if "Content-Disposition" in response.headers:
             header = response.getheader("Content-Disposition")
@@ -211,9 +215,6 @@ def download_file(url: str) -> UploadFile:
         if not filename:
             filename = "file.pdf"
     return filename, file_bytes
-
-
-import tempfile
 
 
 @app.post("/", response_class=HTMLResponse, include_in_schema=False)
@@ -276,7 +277,7 @@ async def extract(
     request: Request,
     file: UploadFile = File(...),
 ) -> StreamingResponse:
-    """Converts a rdf file on the web to the specified serializatio format.
+    """Converts a document file on the web to the specified serializatio format.
 
     Args:
         request (Request): general request
@@ -285,7 +286,7 @@ async def extract(
         HTTPException: Error description
 
     Returns:
-        StreamingResponse: RDF Output File as Streaming Response
+        StreamingResponse: Zip Output File as Streaming Response
     """
     # models = get_cached_models()  # Directly call the caching function
     doc_path = default_extract_dir / file.filename
@@ -294,7 +295,12 @@ async def extract(
     global loaded_models
     extractor = PDFExtract(doc_path=doc_path, models=cached_models)
     extractor.extract_text()
-    zip_file_buffer = extractor.zip_results(delete_files=True)
+    app_mode = os.environ.get("APP_MODE") or "production"
+    if app_mode == "development":
+        delete_files = False
+    else:
+        delete_files = True
+    zip_file_buffer = extractor.zip_results(delete_files=delete_files)
     zip_name = extractor.outname
     del extractor
     headers = {
@@ -319,10 +325,6 @@ async def info() -> dict:
     return setting
 
 
-# time http calls
-from time import time
-
-
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
     start_time = time()
@@ -331,8 +333,6 @@ async def add_process_time_header(request: Request, call_next):
     response.headers["X-Process-Time"] = str(process_time)
     return response
 
-
-import multiprocessing
 
 if __name__ == "__main__":
     multiprocessing.set_start_method("spawn", force=True)
@@ -351,7 +351,7 @@ if __name__ == "__main__":
         reload = False
         access_log = False
         host = None
-        "--workers", "1", "--proxy-headers"
+        # "--workers", "1", "--proxy-headers"
     uvicorn.run(
         "app:app",
         host=host,

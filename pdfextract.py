@@ -1,21 +1,21 @@
-from pathlib import Path
-
-default_out_dir = Path.cwd() / "output"
-default_model_dir = Path.cwd() / "models"
-
+import io
+import os
 import shutil
-import io, os
-import zipfile
 import time
-
-# import diskcache as dc
+import zipfile
 
 from marker.config.parser import ConfigParser
 from marker.converters.pdf import PdfConverter
 from marker.models import create_model_dict
 from marker.output import save_output
-
 from marker.settings import Settings as marker_Settings
+from pathlib import Path
+
+default_out_dir = Path.cwd() / "output"
+default_model_dir = Path.cwd() / "models"
+
+# import diskcache as dc
+
 
 TORCH_DEVICE = os.getenv("TORCH_DEVICE", "cpu")
 settings = marker_Settings(TORCH_DEVICE=os.getenv("TORCH_DEVICE", TORCH_DEVICE))
