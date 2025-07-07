@@ -41,7 +41,7 @@ def fetch_crossref_record(doi=None, query=None):
             items = data.get("message", {}).get("items", [])
             for hit in items:
                 print(f"hit title: {hit['title']}, query: {query}")
-                if has_similar_string(query,hit['title'],threshold=0.9):
+                if has_similar_string(query,hit['title'],threshold=0.5):
                     return hit
     return None
 
