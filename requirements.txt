@@ -13,3 +13,4 @@ pydantic>=2.4.0
 pydantic_settings
 requests
 opencv-python-headless==4.11.0.86
+fake-useragent

@@ -8,20 +8,21 @@ import ssl
 import tempfile
 from contextlib import asynccontextmanager
 from datetime import datetime
-from io import BytesIO
+from io import BytesIO, StringIO
 from pathlib import Path
-
+import json
+from cross_ref import build_full_record
 # time http calls
 from time import time
-from typing import Any
+from typing import Any, Optional
 from urllib.request import urlopen
 
 import uvicorn
-from fastapi import FastAPI, File, Request, UploadFile
+from fastapi import FastAPI, File, Request, UploadFile, Query, HTTPException
 
 # from starlette.middleware.cors import CORSMiddleware
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from rdflib import BNode, Graph, Literal, URIRef
@@ -314,6 +315,74 @@ async def extract(
 
     return response
 
+@app.post("/api/extract", tags=["extract transform"])
+async def extract(
+    request: Request,
+    file: UploadFile = File(...),
+) -> StreamingResponse:
+    """Converts a document file on the web to the specified serializatio format.
+
+    Args:
+        request (Request): general request
+
+    Raises:
+        HTTPException: Error description
+
+    Returns:
+        StreamingResponse: Zip Output File as Streaming Response
+    """
+    # models = get_cached_models()  # Directly call the caching function
+    doc_path = default_extract_dir / file.filename
+    with open(default_extract_dir / file.filename, "wb") as f:
+        f.write(await file.read())
+    global loaded_models
+    extractor = PDFExtract(doc_path=doc_path, models=cached_models)
+    extractor.extract_text()
+    app_mode = os.environ.get("APP_MODE") or "production"
+    if app_mode == "development":
+        delete_files = False
+    else:
+        delete_files = True
+    zip_file_buffer = extractor.zip_results(delete_files=delete_files)
+    zip_name = extractor.outname
+    del extractor
+    headers = {
+        "Content-Disposition": "attachment; filename={}".format(zip_name + ".zip"),
+        "Access-Control-Expose-Headers": "Content-Disposition",
+    }
+    media_type = "application/json"
+    response = StreamingResponse(
+        iter([zip_file_buffer.getvalue()]), media_type=media_type, headers=headers
+    )
+
+    return response
+
+@app.get("/api/crossref")
+async def get_crossref(
+    query: Optional[str] = Query(None, description="A string query parameter."),
+    doi_url: Optional[str] = Query(None, description="An DOI URL."),
+    max_depth: Optional[int] = Query(0, description="The recursive depth of citations to follow")
+):
+    """
+    Get crossref metadata for a string to query (best use title) or a doi link.
+
+    - **query**: A required string parameter used for processing.
+    - **doi_url**: An optional DOI URL for additional context (if provided).
+    
+    Returns a streamed JSON response.
+    """
+    if not query and not doi_url:
+        raise HTTPException(status_code=400, detail="Either 'query' or 'doi_url' must be set.")
+    if doi_url:
+        final_data_of_paper = build_full_record(doi=doi_url, max_depth=max_depth)
+    else:
+        final_data_of_paper = build_full_record(query=query, max_depth=max_depth)
+    response_data = json.dumps(final_data_of_paper, indent=4)
+    
+    # Create a stream from the response data
+    response_stream = StringIO(response_data)
+    
+    return StreamingResponse(response_stream, media_type="application/json")
 
 @app.get("/info", response_model=settings.Setting)
 async def info() -> dict:

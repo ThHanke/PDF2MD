@@ -3,13 +3,14 @@ import os
 import shutil
 import time
 import zipfile
-
+import json
 from marker.config.parser import ConfigParser
 from marker.converters.pdf import PdfConverter
 from marker.models import create_model_dict
 from marker.output import save_output
 from marker.settings import Settings as marker_Settings
 from pathlib import Path
+from cross_ref import build_full_record
 
 default_out_dir = Path.cwd() / "output"
 default_model_dir = Path.cwd() / "models"
@@ -80,7 +81,30 @@ class PDFExtract:
             self.out_folder,
             config_parser.get_base_filename(self.doc_path.as_posix()),
         )
-
+        json_files = list(self.out_folder.glob('*.json'))
+        if len(json_files) == 1:
+            with open(json_files[0], 'r') as json_file:
+                data = json.load(json_file)
+                # Extrahieren der Titel mit heading_level == null
+                titles = []
+                for item in data['table_of_contents']:
+                    if item['heading_level'] is None:
+                        if item['title'] and len(item['title'].split())<5:
+                            continue
+                        # Überprüfen, ob der Titel mit einer Zahl beginnt
+                        if item['title'] and item['title'][0].isdigit():
+                            break
+                        titles.append(item['title'])
+                        
+                for title in titles:
+                    meta_data=build_full_record(query=title,max_depth=0)
+                    if meta_data:
+                        data.update(meta_data)  # Füge meta_data auf der obersten Ebene in data ein
+                        break
+        # Speichern des aktualisierten data-Dictionaries in dieselbe JSON-Datei
+        if meta_data:
+            with open(json_files[0], 'w') as json_file:  # Überschreibe die ursprüngliche Datei
+                json.dump(data, json_file, indent=4)
         print(f"Saved markdown to {self.out_folder }")
         print(f"Total time: {time.time() - start}")
 
