@@ -1,11 +1,18 @@
 # app.py
 import base64
 import logging
+import multiprocessing
 import os
 import re
+import ssl
+import tempfile
 from contextlib import asynccontextmanager
 from datetime import datetime
 from io import BytesIO
+from pathlib import Path
+
+# time http calls
+from time import time
 from typing import Any
 from urllib.request import urlopen
 
@@ -25,11 +32,8 @@ from starlette.responses import HTMLResponse
 from starlette_wtf import CSRFProtectMiddleware, StarletteForm, csrf_protect
 from wtforms import FileField, URLField
 
-import ssl
-from pathlib import Path
-from pdfextract import PDFExtract, load_models
-
 import settings
+from pdfextract import PDFExtract, load_models
 
 setting = settings.Setting()
 
@@ -197,7 +201,7 @@ async def get_index(request: Request):
 def download_file(url: str) -> UploadFile:
     ctx = ssl.create_default_context()
     app_mode = os.environ.get("APP_MODE") or "production"
-    if app_mode=='development':
+    if app_mode == "development":
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
     with urlopen(url, context=ctx) as response:
@@ -211,9 +215,6 @@ def download_file(url: str) -> UploadFile:
         if not filename:
             filename = "file.pdf"
     return filename, file_bytes
-
-
-import tempfile
 
 
 @app.post("/", response_class=HTMLResponse, include_in_schema=False)
@@ -295,10 +296,10 @@ async def extract(
     extractor = PDFExtract(doc_path=doc_path, models=cached_models)
     extractor.extract_text()
     app_mode = os.environ.get("APP_MODE") or "production"
-    if app_mode=='development':
-        delete_files=False
+    if app_mode == "development":
+        delete_files = False
     else:
-        delete_files=True
+        delete_files = True
     zip_file_buffer = extractor.zip_results(delete_files=delete_files)
     zip_name = extractor.outname
     del extractor
@@ -324,10 +325,6 @@ async def info() -> dict:
     return setting
 
 
-# time http calls
-from time import time
-
-
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
     start_time = time()
@@ -336,8 +333,6 @@ async def add_process_time_header(request: Request, call_next):
     response.headers["X-Process-Time"] = str(process_time)
     return response
 
-
-import multiprocessing
 
 if __name__ == "__main__":
     multiprocessing.set_start_method("spawn", force=True)
@@ -356,7 +351,7 @@ if __name__ == "__main__":
         reload = False
         access_log = False
         host = None
-        "--workers", "1", "--proxy-headers"
+        # "--workers", "1", "--proxy-headers"
     uvicorn.run(
         "app:app",
         host=host,

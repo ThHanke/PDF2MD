@@ -9,7 +9,7 @@ jinja2
 fastapi
 uvicorn
 gunicorn
-pydantic>=2.0.0
+pydantic>=2.4.0
 pydantic_settings
 requests
 opencv-python-headless
