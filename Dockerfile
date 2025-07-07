@@ -1,5 +1,5 @@
-#FROM pytorch/pytorch:2.1.2-cuda11.8-cudnn8-runtime AS base
-FROM pytorch/pytorch:2.5.0-cuda12.4-cudnn9-runtime AS base
+#FROM pytorch/pytorch:2.5.0-cuda12.4-cudnn9-runtime AS base
+FROM pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime AS base
 ENV DEBIAN_FRONTEND noninteractive
 ENV TZ=Europe/Berlin
 RUN buildDeps='locales curl wget build-essential software-properties-common libmagic1 libxml2 git ocrmypdf' \
@@ -30,13 +30,6 @@ FROM base
 #     apt update --quiet
 RUN apt install -y tesseract-ocr tesseract-ocr-eng
 #tesseract-ocr-eng tesseract-ocr-deu
-
-#install marker
-RUN pip install marker-pdf
-# RUN git clone https://github.com/VikParuchuri/marker.git ../marker
-# COPY marker_setup.py /marker/setup.py
-# RUN cd /marker && \
-#     pip install .
 
 #install requirements - remember conda is installed in that image
 ADD . /src
