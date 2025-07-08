@@ -82,6 +82,7 @@ class PDFExtract:
             config_parser.get_base_filename(self.doc_path.as_posix()),
         )
         json_files = list(self.out_folder.glob('*.json'))
+        meta_data={}
         if len(json_files) == 1:
             with open(json_files[0], 'r') as json_file:
                 data = json.load(json_file)
