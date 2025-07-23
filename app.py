@@ -16,6 +16,7 @@ from cross_ref import build_full_record
 from time import time
 from typing import Any, Optional
 from urllib.request import urlopen
+import unicodedata
 
 import uvicorn
 from fastapi import FastAPI, File, Request, UploadFile, Query, HTTPException
@@ -169,6 +170,29 @@ templates.env.globals["get_flashed_messages"] = get_flashed_messages
 
 logging.basicConfig(level=logging.DEBUG)
 
+
+def replace_non_latin1(s: str) -> str:
+    # Normalize and remove characters not supported by Latin-1
+    normalized = unicodedata.normalize("NFKD", s)
+    ascii_string = normalized.encode("latin-1", "ignore").decode("latin-1")
+    return ascii_string
+
+def sanitize_headers(headers: dict) -> dict:
+    sanitized = {}
+    for k, v in headers.items():
+        try:
+            # Ensure keys and values are strings
+            k_str = str(k)
+            v_str = str(v)
+
+            # Replace non-latin-1 characters
+            clean_k = replace_non_latin1(k_str)
+            clean_v = replace_non_latin1(v_str)
+
+            sanitized[clean_k] = clean_v
+        except Exception as e:
+            logging.debug(f"Skipping header due to error: {k}: {v} ({e})")
+    return sanitized
 
 class StartFormUri(StarletteForm):
     data_url = URLField(
