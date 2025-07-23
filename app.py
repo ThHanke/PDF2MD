@@ -334,7 +334,9 @@ async def extract(
     }
     media_type = "application/zip"
     response = StreamingResponse(
-        iter([zip_file_buffer.getvalue()]), media_type=media_type, headers=headers
+        iter([zip_file_buffer.getvalue()]),
+        media_type=media_type,
+        headers=sanitize_headers(headers)
     )
 
     return response
